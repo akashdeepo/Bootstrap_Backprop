@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amortized-bootstrap"
+version = "0.1.0"
+description = "Amortized neural estimation of sampling distributions for bootstrap-inconsistent statistics"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Akash Deep" }]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "torch>=2.1",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+include = ["amortized_bootstrap*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

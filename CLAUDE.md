@@ -17,7 +17,7 @@ python -m amortized_bootstrap.experiments.m1_uniform_max            # Milestone 
 python -m amortized_bootstrap.experiments.m1_uniform_max --epochs 40 --n-train 800000 --hidden 384
 ```
 
-No test suite yet. Stack: Python, PyTorch (CUDA), numpy, scipy.
+Fast CPU test suite (analytic-vs-MC truth checks, calibration round-trips, sampler validation): `pytest tests/ -q` — also run by GitHub Actions CI on push. Stack: Python, PyTorch (CUDA), numpy, scipy.
 
 ## Hard Constraints
 
