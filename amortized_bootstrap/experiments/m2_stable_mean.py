@@ -43,6 +43,7 @@ from ..evaluation import (evaluate_method, print_results_table,
                           input_sensitivity_diagnostic)
 from ..calibration import (empirical_coverage_curve, adjusted_levels,
                            apply_recalibration)
+from ..export import export_table
 
 N_VAL = 20_000
 N_TEST_PARAMS = 200
@@ -206,6 +207,8 @@ def main():
                         q_true, levels, norm, q_ref=q_param),
     ]
     print_results_table(rows, len(params_test), unit='1/sc')
+    export_table(rows, 'm2_stable_mean',
+                 'Stable mean, alpha ~ U(1.1, 1.95), n = 200 (Athreya case)')
 
     # ------------------------------------------------------------------
     # 6. Input-sensitivity diagnostic
@@ -248,6 +251,12 @@ def main():
     # ------------------------------------------------------------------
     # 8. Save
     # ------------------------------------------------------------------
+    own_te = T_n - mu_te
+    test_cov_raw = (own_te[:, None] <= q_model).mean(axis=0)
+    test_cov_recal = (own_te[:, None] <= q_model_recal).mean(axis=0)
+    i_lo = int(np.argmin(np.abs(levels - 0.025)))
+    i_hi = int(np.argmin(np.abs(levels - 0.975)))
+
     out = cfg.RESULTS_DIR / 'm2_stable_mean.npz'
     save = {
         'levels': levels,
@@ -258,6 +267,11 @@ def main():
         'train_losses': np.array(result['train_losses']),
         'val_losses': np.array(result['val_losses']),
         'tau_adj': tau_adj,
+        'test_cov_raw': test_cov_raw,
+        'test_cov_recal': test_cov_recal,
+        'w_model': (q_model_recal[:, i_hi] - q_model_recal[:, i_lo]).astype(np.float32),
+        'w_true': (q_true[:, i_hi] - q_true[:, i_lo]).astype(np.float32),
+        'w_param': (q_param[:, i_hi] - q_param[:, i_lo]).astype(np.float32),
         'q_model_head': q_model[:200],
         'q_model_recal_head': q_model_recal[:200],
         'q_true_head': q_true[:200],

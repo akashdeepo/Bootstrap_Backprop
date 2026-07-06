@@ -30,6 +30,9 @@ from ..baselines import (standard_bootstrap_quantiles, subsampling_quantiles,
                          parametric_bootstrap_quantiles)
 from ..evaluation import (evaluate_method, print_results_table,
                           input_sensitivity_diagnostic)
+from ..calibration import (empirical_coverage_curve, adjusted_levels,
+                           apply_recalibration)
+from ..export import export_table
 
 N_VAL = 20_000
 N_TEST_PARAMS = 200
@@ -60,7 +63,7 @@ def main():
     # ------------------------------------------------------------------
     t0 = time.time()
     X_tr, t_tr, _ = generate_examples(family, args.n_train, n, cfg.RNG_TRAIN)
-    X_va, t_va, _ = generate_examples(family, N_VAL, n, cfg.RNG_VAL)
+    X_va, t_va, p_va = generate_examples(family, N_VAL, n, cfg.RNG_VAL)
 
     theta_test = family.sample_params(N_TEST_PARAMS, cfg.RNG_TEST)
     params_test = np.repeat(theta_test, N_TEST_DATASETS_PER_PARAM)
@@ -103,6 +106,17 @@ def main():
 
     q_model = predict_root_quantiles(model, z_te, aux_te, s_te,
                                      target_scale, device=device)
+
+    # Own-root recalibration on the validation split (final protocol; see
+    # M2: coverage is a joint statement about the prediction and the
+    # dataset's OWN root, which are dependent through X)
+    q_val = predict_root_quantiles(model, z_va, aux_va, s_va,
+                                   target_scale, device=device)
+    own_va = family.statistic(X_va) - family.true_param(p_va)
+    h_curve = empirical_coverage_curve(q_val, own_va, levels)
+    tau_adj = adjusted_levels(levels, h_curve)
+    q_model_recal = apply_recalibration(q_model, levels, tau_adj)
+
     q_true = family.true_root_quantiles(params_test, levels, n)
     q_bayes = bayes_root_quantiles(T_n, levels, n,
                                    a=family.theta_min, b=family.theta_max)
@@ -128,10 +142,14 @@ def main():
                         q_true, levels, norm),
         evaluate_method('bayes_(oracle)', q_bayes, T_n, params_test,
                         q_true, levels, norm),
-        evaluate_method('learned_(ours)', q_model, T_n, params_test,
+        evaluate_method('learned_raw', q_model, T_n, params_test,
                         q_true, levels, norm, q_ref=q_bayes),
+        evaluate_method('learned_recal_(ours)', q_model_recal, T_n,
+                        params_test, q_true, levels, norm, q_ref=q_bayes),
     ]
     print_results_table(rows, len(params_test), unit='n/th')
+    export_table(rows, 'm1_uniform_max',
+                 'Uniform max, theta ~ LogUniform(0.5, 5), n = 200')
 
     # ------------------------------------------------------------------
     # 6. Input-sensitivity diagnostic (anti-memorization guard)
@@ -149,7 +167,7 @@ def main():
     # ------------------------------------------------------------------
     # 7. Gates
     # ------------------------------------------------------------------
-    learned = rows[-1]
+    learned = rows[-1]  # recalibrated
     sb = rows[0]
     subsamp = rows[1]
     # G4 note: comparing w1_bayes to the model's own w1_truth is degenerate
@@ -176,6 +194,14 @@ def main():
     # ------------------------------------------------------------------
     # 8. Save
     # ------------------------------------------------------------------
+    # Figure-grade arrays: per-level test reliability (own-root coverage)
+    # and per-dataset 95%-interval widths for tracking scatters
+    own_te = T_n - params_test
+    test_cov_raw = (own_te[:, None] <= q_model).mean(axis=0)
+    test_cov_recal = (own_te[:, None] <= q_model_recal).mean(axis=0)
+    i_lo = int(np.argmin(np.abs(levels - 0.025)))
+    i_hi = int(np.argmin(np.abs(levels - 0.975)))
+
     out = cfg.RESULTS_DIR / 'm1_uniform_max.npz'
     save = {
         'levels': levels,
@@ -185,8 +211,15 @@ def main():
         'diag_' + 'noise_response': diag['noise_response'],
         'train_losses': np.array(result['train_losses']),
         'val_losses': np.array(result['val_losses']),
+        'tau_adj': tau_adj,
+        'test_cov_raw': test_cov_raw,
+        'test_cov_recal': test_cov_recal,
+        'w_model': (q_model_recal[:, i_hi] - q_model_recal[:, i_lo]).astype(np.float32),
+        'w_true': (q_true[:, i_hi] - q_true[:, i_lo]).astype(np.float32),
+        'w_bayes': (q_bayes[:, i_hi] - q_bayes[:, i_lo]).astype(np.float32),
         # quantile curves for the first 200 test datasets (plots later)
         'q_model_head': q_model[:200],
+        'q_model_recal_head': q_model_recal[:200],
         'q_bayes_head': q_bayes[:200],
         'q_true_head': q_true[:200],
         'q_std_boot_head': q_std_boot[:200],

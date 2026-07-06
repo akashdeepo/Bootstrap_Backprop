@@ -79,6 +79,21 @@ def evaluate_method(name: str, q_root: np.ndarray, T_n: np.ndarray,
     return row
 
 
+def evaluate_direct_ci(name: str, lo95, hi95, lo90, hi90,
+                       true_value: np.ndarray, norm: np.ndarray) -> dict:
+    """Row for methods that produce CIs directly (e.g. the exact
+    order-statistic CI), without a root quantile function. W1 is NaN."""
+    cov95 = float(np.mean((true_value >= lo95) & (true_value <= hi95)))
+    cov90 = float(np.mean((true_value >= lo90) & (true_value <= hi90)))
+    return {
+        'method': name,
+        'cov95': cov95,
+        'cov90': cov90,
+        'len95': float(np.mean((hi95 - lo95) * norm)),
+        'w1_truth': float('nan'),
+    }
+
+
 def print_results_table(rows: list, n_datasets: int, unit: str = 'nrm'):
     se95 = np.sqrt(0.05 * 0.95 / n_datasets)
     print("\n" + "=" * 88)

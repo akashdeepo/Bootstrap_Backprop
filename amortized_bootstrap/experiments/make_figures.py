@@ -1,0 +1,271 @@
+"""
+Paper figures, generated from the saved experiment .npz files.
+
+Design notes (dataviz method): color follows the METHOD identity and is
+fixed across every figure -- ours=blue, standard bootstrap=aqua,
+m-out-of-n=yellow, parametric=green, Bayes oracle=violet; the truth is a
+neutral dashed reference line, not a series. Palette validated (light
+surface, worst adjacent CVD dE 24.2); aqua and yellow are sub-3:1 on
+white, so their marks always carry direct value labels. One axis per
+panel; hairline grid; no rainbow, no dual axes.
+
+Outputs paper/figures/*.png (300 dpi) and *.pdf (vector, for LaTeX).
+
+Usage:
+    python -m amortized_bootstrap.experiments.make_figures
+"""
+
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+from .. import config as cfg
+from ..export import FIGURES_DIR
+
+# ---- method identity colors (validated categorical slots) ----
+C_OURS = '#2a78d6'      # blue
+C_OURS_RAW = '#86b6ef'  # lighter step of the same hue (raw vs recal)
+C_SBOOT = '#1baf7a'     # aqua
+C_MOON = '#eda100'      # yellow
+C_PARAM = '#008300'     # green
+C_BAYES = '#4a3aa7'     # violet
+INK = '#0b0b0b'
+INK2 = '#52514e'
+MUTED = '#898781'
+GRID = '#e1e0d9'
+AXIS = '#c3c2b7'
+
+plt.rcParams.update({
+    'font.size': 8.5,
+    'axes.edgecolor': AXIS,
+    'axes.labelcolor': INK2,
+    'axes.titlecolor': INK,
+    'axes.titlesize': 9,
+    'xtick.color': INK2,
+    'ytick.color': INK2,
+    'xtick.labelsize': 7.5,
+    'ytick.labelsize': 7.5,
+    'axes.grid': True,
+    'grid.color': GRID,
+    'grid.linewidth': 0.6,
+    'axes.axisbelow': True,
+    'legend.frameon': False,
+    'legend.fontsize': 7.5,
+    'figure.dpi': 120,
+})
+
+FAMILIES = [
+    ('m1_uniform_max', 'Uniform max'),
+    ('m2_stable_mean', 'Stable mean'),
+    ('m3_pareto_hill', 'Pareto Hill'),
+    ('m3_nts_var', 'NTS VaR 0.99'),
+]
+
+
+def _load(name):
+    path = cfg.RESULTS_DIR / f"{name}.npz"
+    return np.load(path) if path.exists() else None
+
+
+def _style_axes(ax):
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+
+def _save(fig, name):
+    for ext in ('png', 'pdf'):
+        fig.savefig(FIGURES_DIR / f"{name}.{ext}",
+                    dpi=300 if ext == 'png' else None,
+                    bbox_inches='tight')
+    plt.close(fig)
+    print(f"  saved paper/figures/{name}.png/.pdf")
+
+
+# ----------------------------------------------------------------------
+# Figure 1: reliability (nominal level vs empirical own-root coverage)
+# ----------------------------------------------------------------------
+
+def fig_reliability():
+    """Deviation form: empirical minus nominal coverage, in percentage
+    points -- makes the recalibration correction visible (the raw and
+    recalibrated curves are indistinguishable on a full 0-1 diagonal)."""
+    fig, axes = plt.subplots(1, 4, figsize=(9.6, 2.5), sharey=True)
+    for ax, (name, title) in zip(axes, FAMILIES):
+        d = _load(name)
+        _style_axes(ax)
+        ax.axhline(0.0, ls='--', lw=0.9, color=MUTED, zorder=1)
+        if d is not None and 'test_cov_raw' in d:
+            lv = d['levels']
+            ax.plot(lv, 100 * (d['test_cov_raw'] - lv), lw=1.6,
+                    color=C_OURS_RAW, zorder=2)
+            ax.plot(lv, 100 * (d['test_cov_recal'] - lv), lw=1.6,
+                    color=C_OURS, zorder=3)
+        ax.set_title(title)
+        ax.set_xlabel('nominal level')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-4, 4)
+        ax.set_xticks([0, 0.5, 1.0])
+    axes[0].set_ylabel('coverage deviation (pp)')
+    fig.legend(handles=[
+        plt.Line2D([], [], color=C_OURS_RAW, lw=1.6, label='learned (raw)'),
+        plt.Line2D([], [], color=C_OURS, lw=1.6,
+                   label='learned (recalibrated)'),
+        plt.Line2D([], [], color=MUTED, lw=0.9, ls='--', label='ideal'),
+    ], loc='upper center', ncol=3, bbox_to_anchor=(0.5, 1.12))
+    _save(fig, 'fig_reliability')
+
+
+# ----------------------------------------------------------------------
+# Figure 2: W1 to the true root distribution, by method and family
+# ----------------------------------------------------------------------
+
+_METHOD_ROWS = {
+    'm1_uniform_max': [
+        ('standard_bootstrap_w1_truth', 'Standard bootstrap', C_SBOOT),
+        ('subsampling_m34_w1_truth', 'Subsampling m=34', C_MOON),
+        ('parametric_bootstrap_w1_truth', 'Parametric', C_PARAM),
+        ('bayes_oracle_w1_truth', 'Bayes oracle', C_BAYES),
+        ('learned_recal_ours_w1_truth', 'Learned (ours)', C_OURS),
+    ],
+    'm2_stable_mean': [
+        ('standard_bootstrap_w1_truth', 'Standard bootstrap', C_SBOOT),
+        ('m_of_n_mcculloch_m34_w1_truth', 'm-out-of-n (est. rate)', C_MOON),
+        ('parametric_stable_ref_w1_truth', 'Parametric stable', C_PARAM),
+        ('learned_recal_ours_w1_truth', 'Learned (ours)', C_OURS),
+    ],
+    'm3_pareto_hill': [
+        ('standard_bootstrap_w1_truth', 'Standard bootstrap', C_SBOOT),
+        ('m_of_n_m34_k10_w1_truth', 'm-out-of-n m=34', C_MOON),
+        ('parametric_MLE_w1_truth', 'Parametric MLE', C_PARAM),
+        ('bayes_oracle_w1_truth', 'Bayes oracle', C_BAYES),
+        ('learned_recal_ours_w1_truth', 'Learned (ours)', C_OURS),
+    ],
+    'm3_nts_var': [
+        ('standard_bootstrap_w1_truth', 'Standard bootstrap', C_SBOOT),
+        ('m_of_n_m100_w1_truth', 'm-out-of-n m=100', C_MOON),
+        ('learned_recal_ours_w1_truth', 'Learned (ours)', C_OURS),
+    ],
+}
+
+
+def fig_w1():
+    fig, axes = plt.subplots(1, 4, figsize=(9.6, 2.6))
+    for ax, (name, title) in zip(axes, FAMILIES):
+        d = _load(name)
+        _style_axes(ax)
+        ax.grid(axis='x')
+        ax.grid(False, axis='y')
+        if d is not None:
+            rows = [(lbl, float(d[k]), c) for k, lbl, c in
+                    _METHOD_ROWS[name] if k in d]
+            rows = rows[::-1]  # ours at top after inversion
+            y = np.arange(len(rows))
+            vals = [r[1] for r in rows]
+            ax.barh(y, vals, height=0.62,
+                    color=[r[2] for r in rows], edgecolor='none')
+            ax.set_yticks(y)
+            ax.set_yticklabels([r[0] for r in rows], fontsize=7)
+            ax.set_xscale('log')
+            for yi, v in zip(y, vals):
+                ax.text(v * 1.15, yi, f"{v:.3f}", va='center',
+                        fontsize=6.5, color=INK2)
+            ax.set_xlim(right=max(vals) * 4.5)
+        ax.set_title(title)
+        ax.set_xlabel('W1 to true root dist. (log)')
+    fig.tight_layout(w_pad=1.6)
+    _save(fig, 'fig_w1_comparison')
+
+
+# ----------------------------------------------------------------------
+# Figure 3: width tracking (the anti-memorization figure)
+# ----------------------------------------------------------------------
+
+def fig_width_tracking():
+    fig, axes = plt.subplots(1, 4, figsize=(9.6, 2.6))
+    rng = np.random.default_rng(0)
+    for ax, (name, title) in zip(axes, FAMILIES):
+        d = _load(name)
+        _style_axes(ax)
+        if d is not None and 'w_model' in d:
+            w_m = np.log10(np.maximum(d['w_model'], 1e-12))
+            w_t = np.log10(np.maximum(d['w_true'], 1e-12))
+            idx = rng.choice(len(w_m), size=min(3000, len(w_m)),
+                             replace=False)
+            lo = min(w_t.min(), w_m.min())
+            hi = max(w_t.max(), w_m.max())
+            pad = 0.05 * (hi - lo)
+            ax.plot([lo - pad, hi + pad], [lo - pad, hi + pad], ls='--',
+                    lw=0.9, color=MUTED, zorder=1)
+            ax.scatter(w_t[idx], w_m[idx], s=3, color=C_OURS, alpha=0.18,
+                       linewidths=0, zorder=2)
+            r = np.corrcoef(w_t, w_m)[0, 1]
+            ax.text(0.05, 0.90, f"corr = {r:.3f}", fontsize=8,
+                    color=INK, transform=ax.transAxes)
+            ax.set_xlim(lo - pad, hi + pad)
+            ax.set_ylim(lo - pad, hi + pad)
+        ax.set_title(title)
+        ax.set_xlabel('log10 true 95% width')
+    axes[0].set_ylabel('log10 predicted width')
+    fig.tight_layout()
+    _save(fig, 'fig_width_tracking')
+
+
+# ----------------------------------------------------------------------
+# Figure 4: predicted quantile functions vs truth (two exemplars)
+# ----------------------------------------------------------------------
+
+def fig_quantile_overlay():
+    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.7))
+
+    d1 = _load('m1_uniform_max')
+    ax = axes[0]
+    _style_axes(ax)
+    if d1 is not None and 'q_model_recal_head' in d1:
+        lv = d1['levels']
+        i = 0
+        ax.plot(lv, d1['q_std_boot_head'][i], lw=1.4, color=C_SBOOT,
+                label='standard bootstrap')
+        ax.plot(lv, d1['q_bayes_head'][i], lw=1.4, color=C_BAYES,
+                label='Bayes oracle')
+        ax.plot(lv, d1['q_model_recal_head'][i], lw=1.6, color=C_OURS,
+                label='learned (ours)')
+        ax.plot(lv, d1['q_true_head'][i], ls='--', lw=1.1, color=INK,
+                label='truth')
+    ax.set_title('Uniform max: one test dataset')
+    ax.set_xlabel('quantile level')
+    ax.set_ylabel('root quantile')
+    ax.legend(loc='lower right')
+
+    d2 = _load('m2_stable_mean')
+    ax = axes[1]
+    _style_axes(ax)
+    if d2 is not None and 'q_model_recal_head' in d2:
+        lv = d2['levels']
+        i = 0
+        ax.plot(lv, d2['q_sboot_head'][i], lw=1.4, color=C_SBOOT,
+                label='standard bootstrap')
+        ax.plot(lv, d2['q_param_head'][i], lw=1.4, color=C_PARAM,
+                label='parametric stable')
+        ax.plot(lv, d2['q_model_recal_head'][i], lw=1.6, color=C_OURS,
+                label='learned (ours)')
+        ax.plot(lv, d2['q_true_head'][i], ls='--', lw=1.1, color=INK,
+                label='truth')
+    ax.set_title('Stable mean: one test dataset')
+    ax.set_xlabel('quantile level')
+    ax.legend(loc='upper left')
+
+    fig.tight_layout()
+    _save(fig, 'fig_quantile_overlay')
+
+
+def main():
+    print("Generating paper figures -> paper/figures/")
+    fig_reliability()
+    fig_w1()
+    fig_width_tracking()
+    fig_quantile_overlay()
+
+
+if __name__ == '__main__':
+    main()
