@@ -41,10 +41,15 @@ N_LEVELS = len(QUANTILE_LEVELS)  # 199
 # streams[4] -> diagnostics (noise inputs etc.)
 # streams[5] -> ground-truth quantile tables (stable MC table)
 # streams[6] -> baseline resampling (bootstrap index draws)
+# streams[7] -> M4 universal-model training data
+# streams[8] -> M4 universal-model validation data
+# streams[9] -> M4 out-of-family test data
+# streams[10] -> M4 truth pools / spare
 # NOTE: appending streams is safe -- SeedSequence children are deterministic
-# by index, so streams 0-4 are bit-identical to earlier runs. Never reorder.
+# by index, so streams 0-6 are bit-identical to earlier runs. Never reorder.
+N_STREAMS = 12
 _ss = SeedSequence(SEED)
-_children = _ss.spawn(7)
+_children = _ss.spawn(N_STREAMS)
 RNG_TRAIN = default_rng(_children[0])
 RNG_VAL = default_rng(_children[1])
 RNG_TEST = default_rng(_children[2])
@@ -52,6 +57,17 @@ TORCH_SEED = int(_children[3].generate_state(1)[0])
 RNG_DIAG = default_rng(_children[4])
 RNG_TABLE = default_rng(_children[5])
 RNG_BASELINE = default_rng(_children[6])
+RNG_M4_TRAIN = default_rng(_children[7])
+RNG_M4_VAL = default_rng(_children[8])
+RNG_M4_OOD = default_rng(_children[9])
+RNG_M4_POOL = default_rng(_children[10])
+
+
+def fresh_rng(stream_index: int):
+    """A NEW generator at the start of the given stream. Lets a later
+    experiment reproduce another script's draws exactly (e.g. the
+    universal model regenerating each specialist's test set)."""
+    return default_rng(SeedSequence(SEED).spawn(N_STREAMS)[stream_index])
 
 # Directory for large regenerable caches (gitignored)
 DATA_DIR = PROJECT_ROOT / "data"

@@ -9,3 +9,9 @@ Thumbs.db
 
 # Large regenerable caches (none yet; data is generated on the fly)
 data/
+
+# Pre-publication paper materials -- NEVER commit (public repo).
+# These stay local until the paper is published.
+paper/
+LITERATURE.md
+RESEARCH_PLAN.md

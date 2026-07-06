@@ -21,6 +21,7 @@ No test suite yet. Stack: Python, PyTorch (CUDA), numpy, scipy.
 
 ## Hard Constraints
 
+- **NEVER commit pre-publication paper materials** — the GitHub remote is PUBLIC. `paper/`, `LITERATURE.md`, and `RESEARCH_PLAN.md` are gitignored and must stay local-only until the paper is published. Only code, usage docs, and reproducibility artifacts (results/, checkpoints) go in version control. If a new file contains paper text, positioning, or research strategy, gitignore it.
 - **NO Unicode characters in any code or output** — Windows cp1252 console. ASCII only (`->`, `alpha`, `+-`).
 - **The anti-memorization invariants are non-negotiable** (they are the reason v2 exists):
   1. Every training example draws fresh parameters from the prior — no target is ever shared across examples.
