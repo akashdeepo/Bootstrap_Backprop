@@ -180,7 +180,7 @@ def main():
                         true_value, q_true, levels, norm),
     ]
     print_results_table(rows, len(params_test), unit='1/w')
-    export_table(rows, 'm3_nts_var',
+    export_table(rows, 'm3_nts_var' + cfg.VTAG,
                  'VaR 0.99, NTS family, alpha ~ U(1.1, 1.9), n = 200')
 
     # ------------------------------------------------------------------
@@ -219,7 +219,7 @@ def main():
     own_te = T_n - true_value
     i_lo = int(np.argmin(np.abs(levels - 0.025)))
     i_hi = int(np.argmin(np.abs(levels - 0.975)))
-    out = cfg.RESULTS_DIR / 'm3_nts_var.npz'
+    out = cfg.RESULTS_DIR / f'm3_nts_var{cfg.VTAG}.npz'
     save = {
         'levels': levels,
         'params_test': params_test,
@@ -247,7 +247,7 @@ def main():
     torch.save({'state_dict': model.state_dict(),
                 'target_scale': target_scale, 'c0': c0,
                 'n_input': n, 'n_levels': len(levels)},
-               cfg.RESULTS_DIR / 'm3_nts_var_model.pt')
+               cfg.RESULTS_DIR / f'm3_nts_var_model{cfg.VTAG}.pt')
     print(f"\nSaved: {out.name}, m3_nts_var_model.pt")
 
 

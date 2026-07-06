@@ -9,6 +9,7 @@ Design principles (see RESEARCH_PLAN.md):
     or from draws that never touch training.
 """
 
+import os
 from pathlib import Path
 import numpy as np
 from numpy.random import SeedSequence, default_rng
@@ -68,6 +69,24 @@ def fresh_rng(stream_index: int):
     experiment reproduce another script's draws exactly (e.g. the
     universal model regenerating each specialist's test set)."""
     return default_rng(SeedSequence(SEED).spawn(N_STREAMS)[stream_index])
+
+
+# ----------------------------------------------
+# Multi-seed replication (AB_VARIANT environment variable)
+# ----------------------------------------------
+# Variant runs re-randomize ONLY the training data, validation data, and
+# torch initialization. Test sets, ground-truth caches, and baseline
+# resampling stay on the base streams, so replications are PAIRED
+# comparisons on identical test data and reuse all expensive caches.
+# Experiments append VTAG to their output filenames.
+VARIANT = int(os.environ.get('AB_VARIANT', '0'))
+VTAG = '' if VARIANT == 0 else f'_v{VARIANT}'
+if VARIANT:
+    _vchildren = SeedSequence((SEED, VARIANT)).spawn(4)
+    RNG_TRAIN = default_rng(_vchildren[0])
+    RNG_VAL = default_rng(_vchildren[1])
+    TORCH_SEED = int(_vchildren[2].generate_state(1)[0])
+    RNG_DIAG = default_rng(_vchildren[3])
 
 # Directory for large regenerable caches (gitignored)
 DATA_DIR = PROJECT_ROOT / "data"

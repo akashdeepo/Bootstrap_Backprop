@@ -148,7 +148,7 @@ def main():
                         params_test, q_true, levels, norm, q_ref=q_bayes),
     ]
     print_results_table(rows, len(params_test), unit='n/th')
-    export_table(rows, 'm1_uniform_max',
+    export_table(rows, 'm1_uniform_max' + cfg.VTAG,
                  'Uniform max, theta ~ LogUniform(0.5, 5), n = 200')
 
     # ------------------------------------------------------------------
@@ -202,7 +202,7 @@ def main():
     i_lo = int(np.argmin(np.abs(levels - 0.025)))
     i_hi = int(np.argmin(np.abs(levels - 0.975)))
 
-    out = cfg.RESULTS_DIR / 'm1_uniform_max.npz'
+    out = cfg.RESULTS_DIR / f'm1_uniform_max{cfg.VTAG}.npz'
     save = {
         'levels': levels,
         'theta_test': params_test,
@@ -231,7 +231,7 @@ def main():
     save['learned_ours_w1_ref'] = learned['w1_ref']
     np.savez_compressed(out, **save)
 
-    ckpt = cfg.RESULTS_DIR / 'm1_uniform_max_model.pt'
+    ckpt = cfg.RESULTS_DIR / f'm1_uniform_max_model{cfg.VTAG}.pt'
     torch.save({'state_dict': model.state_dict(),
                 'target_scale': target_scale,
                 'n_input': n, 'n_levels': len(levels)}, ckpt)

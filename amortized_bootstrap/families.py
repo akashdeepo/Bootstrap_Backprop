@@ -262,6 +262,55 @@ class NTSVaRFamily:
         return params[:, 3] + params[:, 2] * v_std
 
 
+class BetaMaxPriorFamily:
+    """
+    X = theta * V with F_V(v) = 1 - (1-v)^b on [0,1]; T_n = max,
+    T(F) = theta -- with the endpoint contact order b UNKNOWN:
+    theta ~ LogUniform(theta_min, theta_max), b ~ U(b_min, b_max).
+
+    The convergence rate of the max is n^(-1/b): the rate itself varies
+    across the prior by orders of magnitude. This family exists to test
+    whether the network can learn a data-conditional RATE (Milestone 4c):
+    the uniform-trained specialist collapses on b != 1 (M4a regime 3),
+    and widening the prior over b is the method's own prescribed fix.
+
+    Analytic root quantiles: q(tau) = -theta * (1 - tau^(1/n))^(1/b).
+    """
+
+    name = "beta_max_prior"
+    n_params = 2  # columns: theta, b
+
+    def __init__(self, theta_min: float = 0.5, theta_max: float = 5.0,
+                 b_min: float = 0.4, b_max: float = 2.6):
+        self.theta_min = theta_min
+        self.theta_max = theta_max
+        self.b_min = b_min
+        self.b_max = b_max
+
+    def sample_params(self, n_params: int, rng: Generator) -> np.ndarray:
+        lo, hi = np.log(self.theta_min), np.log(self.theta_max)
+        theta = np.exp(rng.uniform(lo, hi, size=n_params))
+        b = rng.uniform(self.b_min, self.b_max, size=n_params)
+        return np.stack([theta, b], axis=1)
+
+    def sample_data(self, params: np.ndarray, n: int,
+                    rng: Generator) -> np.ndarray:
+        u = rng.uniform(size=(len(params), n))
+        v = 1.0 - (1.0 - u) ** (1.0 / params[:, 1:2])
+        return params[:, 0:1] * v
+
+    def statistic(self, x: np.ndarray) -> np.ndarray:
+        return np.max(x, axis=1)
+
+    def true_param(self, params: np.ndarray) -> np.ndarray:
+        return params[:, 0]
+
+    def true_root_quantiles(self, params: np.ndarray, levels: np.ndarray,
+                            n: int) -> np.ndarray:
+        return -params[:, 0:1] * (1.0 - levels[None, :] ** (1.0 / n)) \
+            ** (1.0 / params[:, 1:2])
+
+
 class UniformMaxFamily:
     """
     X ~ Uniform(0, theta), T_n = max(X), T(F) = theta.

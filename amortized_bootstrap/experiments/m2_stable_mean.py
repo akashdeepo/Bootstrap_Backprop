@@ -207,7 +207,7 @@ def main():
                         q_true, levels, norm, q_ref=q_param),
     ]
     print_results_table(rows, len(params_test), unit='1/sc')
-    export_table(rows, 'm2_stable_mean',
+    export_table(rows, 'm2_stable_mean' + cfg.VTAG,
                  'Stable mean, alpha ~ U(1.1, 1.95), n = 200 (Athreya case)')
 
     # ------------------------------------------------------------------
@@ -257,7 +257,7 @@ def main():
     i_lo = int(np.argmin(np.abs(levels - 0.025)))
     i_hi = int(np.argmin(np.abs(levels - 0.975)))
 
-    out = cfg.RESULTS_DIR / 'm2_stable_mean.npz'
+    out = cfg.RESULTS_DIR / f'm2_stable_mean{cfg.VTAG}.npz'
     save = {
         'levels': levels,
         'params_test': params_test,
@@ -286,7 +286,7 @@ def main():
     save['learned_recal_ours_w1_ref'] = learned['w1_ref']
     np.savez_compressed(out, **save)
 
-    ckpt = cfg.RESULTS_DIR / 'm2_stable_mean_model.pt'
+    ckpt = cfg.RESULTS_DIR / f'm2_stable_mean_model{cfg.VTAG}.pt'
     torch.save({'state_dict': model.state_dict(),
                 'target_scale': target_scale, 'c0': c0,
                 'n_input': n, 'n_levels': len(levels)}, ckpt)
