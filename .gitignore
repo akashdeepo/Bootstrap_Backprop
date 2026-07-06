@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OneDrive / Windows noise
+desktop.ini
+Thumbs.db
+
+# Large regenerable caches (none yet; data is generated on the fly)
+data/
