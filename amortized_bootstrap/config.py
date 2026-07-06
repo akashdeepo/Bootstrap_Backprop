@@ -39,10 +39,20 @@ N_LEVELS = len(QUANTILE_LEVELS)  # 199
 # streams[2] -> test parameter + dataset generation
 # streams[3] -> torch initialization / shuffling seed source
 # streams[4] -> diagnostics (noise inputs etc.)
+# streams[5] -> ground-truth quantile tables (stable MC table)
+# streams[6] -> baseline resampling (bootstrap index draws)
+# NOTE: appending streams is safe -- SeedSequence children are deterministic
+# by index, so streams 0-4 are bit-identical to earlier runs. Never reorder.
 _ss = SeedSequence(SEED)
-_children = _ss.spawn(5)
+_children = _ss.spawn(7)
 RNG_TRAIN = default_rng(_children[0])
 RNG_VAL = default_rng(_children[1])
 RNG_TEST = default_rng(_children[2])
 TORCH_SEED = int(_children[3].generate_state(1)[0])
 RNG_DIAG = default_rng(_children[4])
+RNG_TABLE = default_rng(_children[5])
+RNG_BASELINE = default_rng(_children[6])
+
+# Directory for large regenerable caches (gitignored)
+DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR.mkdir(exist_ok=True)

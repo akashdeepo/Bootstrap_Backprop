@@ -20,6 +20,81 @@ import numpy as np
 from numpy.random import Generator
 
 
+def sample_sas_vectorized(alpha: np.ndarray, size: tuple,
+                          rng: Generator) -> np.ndarray:
+    """
+    Chambers-Mallows-Stuck sampler for symmetric alpha-stable, vectorized
+    over PER-ROW alpha (shape (N, 1) broadcast against draws of shape
+    (N, n)). Standard scale, location 0. Same formula as the scalar-alpha
+    CMS in distributions.py (copied from v1, validated there).
+    """
+    V = rng.uniform(-np.pi / 2, np.pi / 2, size=size)
+    W = rng.exponential(1.0, size=size)
+    V = np.clip(V, -np.pi / 2 + 1e-10, np.pi / 2 - 1e-10)
+    term1 = np.sin(alpha * V) / (np.cos(V) ** (1.0 / alpha))
+    term2 = (np.cos((1.0 - alpha) * V) / W) ** ((1.0 - alpha) / alpha)
+    return term1 * term2
+
+
+class StableMeanFamily:
+    """
+    X ~ mu + sigma * SaS(alpha), T_n = mean(X), T(F) = mu.
+
+    Priors: alpha ~ U(alpha_min, alpha_max) (restricted to (1, 2) so the
+    mean exists), sigma ~ LogUniform(sigma_min, sigma_max), mu ~ U(-2, 2).
+
+    THE flagship non-regular case (Athreya 1987): for alpha < 2 the
+    variance is infinite and the standard bootstrap of the mean is
+    inconsistent -- the bootstrap distribution converges to a RANDOM limit.
+    The root converges at rate n^(1 - 1/alpha), which depends on the
+    unknown alpha, so rate-corrected subsampling requires estimating alpha.
+
+    By the stability property, the root is EXACTLY distributed as
+        mean(X) - mu ~ SaS(alpha, scale = sigma * n^(1/alpha - 1)),
+    so exact evaluation truth only requires standard SaS quantiles
+    (stable_table.py).
+    """
+
+    name = "stable_mean"
+    n_params = 3  # columns: alpha, sigma, mu
+
+    def __init__(self, alpha_min: float = 1.1, alpha_max: float = 1.95,
+                 sigma_min: float = 0.5, sigma_max: float = 5.0,
+                 mu_range: float = 2.0):
+        self.alpha_min = alpha_min
+        self.alpha_max = alpha_max
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        self.mu_range = mu_range
+
+    def sample_params(self, n_params: int, rng: Generator) -> np.ndarray:
+        """Returns (n_params, 3) array with columns [alpha, sigma, mu]."""
+        alpha = rng.uniform(self.alpha_min, self.alpha_max, size=n_params)
+        sigma = np.exp(rng.uniform(np.log(self.sigma_min),
+                                   np.log(self.sigma_max), size=n_params))
+        mu = rng.uniform(-self.mu_range, self.mu_range, size=n_params)
+        return np.stack([alpha, sigma, mu], axis=1)
+
+    def sample_data(self, params: np.ndarray, n: int,
+                    rng: Generator) -> np.ndarray:
+        alpha = params[:, 0:1]
+        sigma = params[:, 1:2]
+        mu = params[:, 2:3]
+        S = sample_sas_vectorized(alpha, (len(params), n), rng)
+        return mu + sigma * S
+
+    def statistic(self, x: np.ndarray) -> np.ndarray:
+        return np.mean(x, axis=1)
+
+    def true_param(self, params: np.ndarray) -> np.ndarray:
+        return params[:, 2]
+
+    def root_scale(self, params: np.ndarray, n: int) -> np.ndarray:
+        """Exact scale of the root: sigma * n^(1/alpha - 1)."""
+        alpha, sigma = params[:, 0], params[:, 1]
+        return sigma * n ** (1.0 / alpha - 1.0)
+
+
 class UniformMaxFamily:
     """
     X ~ Uniform(0, theta), T_n = max(X), T(F) = theta.

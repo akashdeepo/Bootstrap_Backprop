@@ -42,12 +42,20 @@ def generate_examples(family, n_examples: int, n: int, rng: Generator):
     return X, t, params
 
 
-def featurize(X: np.ndarray, eps: float = 1e-12):
+def featurize(X: np.ndarray, eps: float = 1e-12, compress: bool = False):
     """
     Sorted, standardized representation plus auxiliary scale/location inputs.
 
+    Args:
+        compress: apply asinh to the standardized values. Use for
+                  heavy-tailed families (stable, Pareto): extreme order
+                  statistics can be 1000x the IQR, which an MLP handles
+                  poorly raw; asinh preserves order and tail information
+                  while keeping inputs O(10).
+
     Returns:
         z   (N, n)  sorted values, centered by median, scaled by IQR
+                    (asinh-compressed if compress=True)
         aux (N, 2)  [log s, med / s]
         s   (N,)    the per-dataset scale (IQR), used to de-standardize
                     predicted root quantiles
@@ -56,5 +64,7 @@ def featurize(X: np.ndarray, eps: float = 1e-12):
     q25, med, q75 = np.percentile(Xs, [25.0, 50.0, 75.0], axis=1)
     s = np.maximum(q75 - q25, eps)
     z = (Xs - med[:, None]) / s[:, None]
+    if compress:
+        z = np.arcsinh(z)
     aux = np.stack([np.log(s), med / s], axis=1)
     return z.astype(np.float32), aux.astype(np.float32), s

@@ -60,7 +60,9 @@ def w1_normalized(q_a: np.ndarray, q_b: np.ndarray,
 def evaluate_method(name: str, q_root: np.ndarray, T_n: np.ndarray,
                     true_value: np.ndarray, q_true: np.ndarray,
                     levels: np.ndarray, norm: np.ndarray,
-                    q_bayes: np.ndarray = None) -> dict:
+                    q_ref: np.ndarray = None) -> dict:
+    """q_ref: optional reference oracle (exact Bayes when computable, else
+    the strongest classical oracle); adds a 'w1_ref' regret column."""
     cov95, len95 = coverage_and_length(q_root, T_n, true_value, levels,
                                        0.05, norm)
     cov90, len90 = coverage_and_length(q_root, T_n, true_value, levels,
@@ -72,62 +74,62 @@ def evaluate_method(name: str, q_root: np.ndarray, T_n: np.ndarray,
         'len95': len95,
         'w1_truth': w1_normalized(q_root, q_true, norm),
     }
-    if q_bayes is not None:
-        row['w1_bayes'] = w1_normalized(q_root, q_bayes, norm)
+    if q_ref is not None:
+        row['w1_ref'] = w1_normalized(q_root, q_ref, norm)
     return row
 
 
-def print_results_table(rows: list, n_datasets: int):
+def print_results_table(rows: list, n_datasets: int, unit: str = 'nrm'):
     se95 = np.sqrt(0.05 * 0.95 / n_datasets)
-    print("\n" + "=" * 86)
-    print(f"{'Method':<24} {'Cov95':>7} {'Cov90':>7} {'Len95*n/th':>11} "
-          f"{'W1truth*n/th':>13} {'W1bayes*n/th':>13}")
-    print("-" * 86)
+    print("\n" + "=" * 88)
+    print(f"{'Method':<26} {'Cov95':>7} {'Cov90':>7} {'Len95*' + unit:>11} "
+          f"{'W1truth*' + unit:>13} {'W1ref*' + unit:>12}")
+    print("-" * 88)
     for r in rows:
-        wb = f"{r['w1_bayes']:13.4f}" if 'w1_bayes' in r else f"{'--':>13}"
-        print(f"{r['method']:<24} {r['cov95']:7.3f} {r['cov90']:7.3f} "
+        wb = f"{r['w1_ref']:12.4f}" if 'w1_ref' in r else f"{'--':>12}"
+        print(f"{r['method']:<26} {r['cov95']:7.3f} {r['cov90']:7.3f} "
               f"{r['len95']:11.3f} {r['w1_truth']:13.4f} {wb}")
-    print("-" * 86)
+    print("-" * 88)
     print(f"Nominal: 0.950 / 0.900. Coverage MC standard error: "
-          f"~{se95:.4f} (95%). W1 in units of theta/n.")
-    print("=" * 86)
+          f"~{se95:.4f} (95%). Lengths/W1 normalized per dataset ({unit}).")
+    print("=" * 88)
 
 
-def input_sensitivity_diagnostic(model, z, aux, s, target_scale: float,
-                                 q_model: np.ndarray, q_bayes: np.ndarray,
-                                 x_max: np.ndarray, levels: np.ndarray,
-                                 rng, device: str = 'cuda') -> dict:
+def input_sensitivity_diagnostic(predict_fn, z, aux,
+                                 q_model: np.ndarray, q_ref: np.ndarray,
+                                 levels: np.ndarray, rng) -> dict:
     """
-    The anti-memorization guard. Three checks:
+    The anti-memorization guard. Two checks:
 
-    1. tracking_corr_bayes: correlation across test datasets between the
-       model's median root and the Bayes oracle's median root. Constant
-       output (v1 artifact) gives ~0; a real conditional method gives ~1.
-    2. tracking_corr_xmax: correlation between the model's median root and
-       the observed maximum (the sufficient statistic).
-    3. noise_response: relative change in predicted medians when the input
+    1. width_tracking_corr: correlation across test datasets between the
+       model's log 95%-interval width and the reference's (truth or oracle).
+       Constant output (v1 artifact) gives ~0; a real conditional method
+       gives ~1. Width is used rather than the median because roots of
+       symmetric statistics have median ~0 for every dataset.
+    2. noise_response: relative change in predicted widths when the input
        is replaced by Gaussian noise. v1 gave ~0 (output unchanged); any
        genuinely conditional model responds strongly.
+
+    predict_fn(z, aux) must return de-standardized root quantiles (N, L),
+    i.e. the experiment's full prediction pipeline as a closure.
     """
-    from .training import predict_root_quantiles
+    i_lo = level_index(levels, 0.025)
+    i_hi = level_index(levels, 0.975)
 
-    i_med = level_index(levels, 0.5)
-    med_model = q_model[:, i_med]
-    med_bayes = q_bayes[:, i_med]
-
-    corr_bayes = float(np.corrcoef(med_model, med_bayes)[0, 1])
-    corr_xmax = float(np.corrcoef(med_model, x_max)[0, 1])
+    w_model = q_model[:, i_hi] - q_model[:, i_lo]
+    w_ref = q_ref[:, i_hi] - q_ref[:, i_lo]
+    w_model = np.maximum(w_model, 1e-12)
+    w_ref = np.maximum(w_ref, 1e-12)
+    corr = float(np.corrcoef(np.log(w_model), np.log(w_ref))[0, 1])
 
     z_noise = rng.standard_normal(z.shape).astype(np.float32)
     aux_noise = rng.standard_normal(aux.shape).astype(np.float32)
-    q_noise = predict_root_quantiles(model, z_noise, aux_noise, s,
-                                     target_scale, device=device)
-    med_noise = q_noise[:, i_med]
-    denom = np.mean(np.abs(med_model)) + 1e-12
-    noise_response = float(np.mean(np.abs(med_noise - med_model)) / denom)
+    q_noise = predict_fn(z_noise, aux_noise)
+    w_noise = q_noise[:, i_hi] - q_noise[:, i_lo]
+    denom = np.mean(np.abs(w_model)) + 1e-12
+    noise_response = float(np.mean(np.abs(w_noise - w_model)) / denom)
 
     return {
-        'tracking_corr_bayes': corr_bayes,
-        'tracking_corr_xmax': corr_xmax,
+        'width_tracking_corr': corr,
         'noise_response': noise_response,
     }

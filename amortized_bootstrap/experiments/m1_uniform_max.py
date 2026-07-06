@@ -129,16 +129,19 @@ def main():
         evaluate_method('bayes_(oracle)', q_bayes, T_n, params_test,
                         q_true, levels, norm),
         evaluate_method('learned_(ours)', q_model, T_n, params_test,
-                        q_true, levels, norm, q_bayes=q_bayes),
+                        q_true, levels, norm, q_ref=q_bayes),
     ]
-    print_results_table(rows, len(params_test))
+    print_results_table(rows, len(params_test), unit='n/th')
 
     # ------------------------------------------------------------------
     # 6. Input-sensitivity diagnostic (anti-memorization guard)
     # ------------------------------------------------------------------
+    def predict_fn(z_in, aux_in):
+        return predict_root_quantiles(model, z_in, aux_in, s_te,
+                                      target_scale, device=device)
+
     diag = input_sensitivity_diagnostic(
-        model, z_te, aux_te, s_te, target_scale, q_model, q_bayes,
-        T_n, levels, cfg.RNG_DIAG, device=device)
+        predict_fn, z_te, aux_te, q_model, q_bayes, levels, cfg.RNG_DIAG)
     print("\nInput-sensitivity diagnostic (v1 artifact gives ~0 on all):")
     for k, v in diag.items():
         print(f"  {k}: {v:.4f}")
@@ -158,11 +161,11 @@ def main():
     frac_captured = ((sb['w1_truth'] - learned['w1_truth'])
                      / (sb['w1_truth'] - rows[4]['w1_truth']))
     gates = {
-        'G1_uses_input': (diag['tracking_corr_bayes'] > 0.95
+        'G1_uses_input': (diag['width_tracking_corr'] > 0.95
                           and diag['noise_response'] > 0.5),
         'G2_calibrated': abs(learned['cov95'] - 0.95) < 0.01,
         'G3_beats_standard_bootstrap': learned['w1_truth'] < sb['w1_truth'],
-        'G4_near_bayes': learned['w1_bayes'] < 0.25 * subsamp['w1_truth'],
+        'G4_near_bayes': learned['w1_ref'] < 0.25 * subsamp['w1_truth'],
     }
     print(f"\nFraction of standard-bootstrap-to-Bayes gap captured: "
           f"{frac_captured:.1%}")
@@ -178,8 +181,7 @@ def main():
         'levels': levels,
         'theta_test': params_test,
         'T_n': T_n,
-        'diag_' + 'tracking_corr_bayes': diag['tracking_corr_bayes'],
-        'diag_' + 'tracking_corr_xmax': diag['tracking_corr_xmax'],
+        'diag_' + 'width_tracking_corr': diag['width_tracking_corr'],
         'diag_' + 'noise_response': diag['noise_response'],
         'train_losses': np.array(result['train_losses']),
         'val_losses': np.array(result['val_losses']),
@@ -193,7 +195,7 @@ def main():
         key = r['method'].replace('(', '').replace(')', '').replace('=', '')
         for metric in ('cov95', 'cov90', 'len95', 'w1_truth'):
             save[f"{key}_{metric}"] = r[metric]
-    save['learned_ours_w1_bayes'] = learned['w1_bayes']
+    save['learned_ours_w1_ref'] = learned['w1_ref']
     np.savez_compressed(out, **save)
 
     ckpt = cfg.RESULTS_DIR / 'm1_uniform_max_model.pt'
