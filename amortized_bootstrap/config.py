@@ -45,7 +45,8 @@ N_LEVELS = len(QUANTILE_LEVELS)  # 199
 # streams[7] -> M4 universal-model training data
 # streams[8] -> M4 universal-model validation data
 # streams[9] -> M4 out-of-family test data
-# streams[10] -> M4 truth pools / spare
+# streams[10] -> M4 truth pools
+# streams[11] -> real-data vignette subsample draws
 # NOTE: appending streams is safe -- SeedSequence children are deterministic
 # by index, so streams 0-6 are bit-identical to earlier runs. Never reorder.
 N_STREAMS = 12
@@ -62,6 +63,7 @@ RNG_M4_TRAIN = default_rng(_children[7])
 RNG_M4_VAL = default_rng(_children[8])
 RNG_M4_OOD = default_rng(_children[9])
 RNG_M4_POOL = default_rng(_children[10])
+RNG_REAL = default_rng(_children[11])
 
 
 def fresh_rng(stream_index: int):
