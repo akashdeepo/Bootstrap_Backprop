@@ -23,8 +23,19 @@ _COLUMNS = [
     ('cov90', 'Cov. 90', '.3f'),
     ('len95', 'Len. 95', '.2f'),
     ('w1_truth', 'W1 truth', '.3f'),
-    ('w1_ref', 'W1 ref', '.3f'),
+    ('w1_ref', 'W1 to oracle', '.3f'),
 ]
+
+
+def _active_columns(rows):
+    """Columns that have at least one value across rows. An entirely
+    empty column (e.g. 'W1 to oracle' in a family with no computable
+    oracle) reads as a bug in print, so it is omitted."""
+    cols = []
+    for key, header, spec in _COLUMNS:
+        if any(_fmt(r, key, spec) != '' for r in rows):
+            cols.append((key, header, spec))
+    return cols
 
 
 def _fmt(row, key, spec):
@@ -41,12 +52,14 @@ def _fmt(row, key, spec):
 
 def export_table(rows: list, name: str, caption: str = ''):
     """Write paper/tables/{name}.csv and .tex from evaluate_method rows."""
+    cols = _active_columns(rows)
+
     csv_path = TABLES_DIR / f"{name}.csv"
     with open(csv_path, 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow([c[0] for c in _COLUMNS])
+        w.writerow([c[0] for c in cols])
         for r in rows:
-            w.writerow([_fmt(r, k, spec) for k, _, spec in _COLUMNS])
+            w.writerow([_fmt(r, k, spec) for k, _, spec in cols])
 
     tex_path = TABLES_DIR / f"{name}.tex"
     cap = (caption or name).replace(' ~ ', ' $\\sim$ ')
@@ -55,13 +68,13 @@ def export_table(rows: list, name: str, caption: str = ''):
         "\\centering",
         f"\\caption{{{cap}}}",
         f"\\label{{tab:{name}}}",
-        "\\begin{tabular}{lccccc}",
+        "\\begin{tabular}{l" + "c" * (len(cols) - 1) + "}",
         "\\toprule",
-        " & ".join(h for _, h, _ in _COLUMNS) + " \\\\",
+        " & ".join(h for _, h, _ in cols) + " \\\\",
         "\\midrule",
     ]
     for r in rows:
-        cells = [_fmt(r, k, spec) for k, _, spec in _COLUMNS]
+        cells = [_fmt(r, k, spec) for k, _, spec in cols]
         cells[0] = cells[0].replace('_', '\\_')
         lines.append(" & ".join(cells) + " \\\\")
     lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
