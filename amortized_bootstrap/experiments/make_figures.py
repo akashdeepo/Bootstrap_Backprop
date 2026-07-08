@@ -259,12 +259,55 @@ def fig_quantile_overlay():
     _save(fig, 'fig_quantile_overlay')
 
 
+# ----------------------------------------------------------------------
+# Figure 5: real-data VaR coverage (dot plot vs the nominal level)
+# ----------------------------------------------------------------------
+
+C_BINOM = '#e34948'  # categorical slot 6; binomial exact appears only here
+
+def fig_real_var():
+    d = _load('m5_real_var')
+    if d is None:
+        print('  m5_real_var.npz missing; skipping fig_real_var')
+        return
+    assets = [('nasdaq', 'Nasdaq Composite'), ('sp500', 'S&P 500'),
+              ('eurusd', 'EUR/USD'), ('usdjpy', 'USD/JPY'),
+              ('gbpusd', 'GBP/USD')]
+    methods = [('learned_(ours)', 'Learned (ours)', C_OURS),
+               ('standard_bootstrap', 'Standard bootstrap', C_SBOOT),
+               ('m_of_n_m100', 'm-out-of-n', C_MOON),
+               ('binomial_exact', 'Binomial exact', C_BINOM)]
+
+    fig, ax = plt.subplots(figsize=(5.6, 2.8))
+    _style_axes(ax)
+    ax.grid(axis='x')
+    ax.grid(False, axis='y')
+    ax.axvline(0.95, ls='--', lw=1.0, color=MUTED, zorder=1)
+    ax.text(0.951, 4.42, 'nominal 0.95', fontsize=7, color=MUTED)
+
+    y = np.arange(len(assets))[::-1]
+    for key, label, color in methods:
+        covs = [float(d[f'{a}_{key}_cov95']) for a, _ in assets]
+        ax.scatter(covs, y, s=34, color=color, zorder=3,
+                   edgecolors='#52514e', linewidths=0.5, label=label)
+    ax.set_yticks(y)
+    ax.set_yticklabels([lbl for _, lbl in assets], fontsize=8)
+    ax.set_xlim(0.6, 1.0)
+    ax.set_ylim(-0.6, 4.9)
+    ax.set_xlabel('95% interval coverage vs known population VaR')
+    ax.legend(loc='lower left', ncol=1, fontsize=7, handletextpad=0.1,
+              borderaxespad=0.2)
+    fig.tight_layout()
+    _save(fig, 'fig_real_var')
+
+
 def main():
     print("Generating paper figures -> paper/figures/")
     fig_reliability()
     fig_w1()
     fig_width_tracking()
     fig_quantile_overlay()
+    fig_real_var()
 
 
 if __name__ == '__main__':
