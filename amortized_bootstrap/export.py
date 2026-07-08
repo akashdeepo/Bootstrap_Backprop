@@ -30,12 +30,12 @@ _COLUMNS = [
 def _fmt(row, key, spec):
     v = row.get(key)
     if v is None:
-        return '--'
+        return ''   # blank cell; '--' would typeset as an en-dash
     if spec == 's':
         # '|' typesets as an em-dash in text mode; '~' is a nbsp
         return str(v).replace('|', ' / ')
     if v != v:  # NaN
-        return '--'
+        return ''
     return format(v, spec)
 
 
