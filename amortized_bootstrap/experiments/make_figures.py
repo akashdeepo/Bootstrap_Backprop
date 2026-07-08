@@ -301,6 +301,106 @@ def fig_real_var():
     _save(fig, 'fig_real_var')
 
 
+# ----------------------------------------------------------------------
+# Figure 6: method overview schematic (training loop vs deployment)
+# ----------------------------------------------------------------------
+
+def _box(ax, x, y, w, h, text, fc='#ffffff', ec=AXIS, fontsize=7.5,
+         bold=False, tc=INK):
+    from matplotlib.patches import FancyBboxPatch
+    ax.add_patch(FancyBboxPatch(
+        (x, y), w, h, boxstyle="round,pad=0.25,rounding_size=0.6",
+        facecolor=fc, edgecolor=ec, linewidth=1.0, zorder=2))
+    ax.text(x + w / 2, y + h / 2, text, ha='center', va='center',
+            fontsize=fontsize, color=tc, zorder=3,
+            fontweight='bold' if bold else 'normal')
+
+
+def _arrow(ax, x0, y0, x1, y1, dashed=False, color=INK2, label=None,
+           lx=0, ly=0):
+    ax.annotate('', xy=(x1, y1), xytext=(x0, y0),
+                arrowprops=dict(arrowstyle='-|>', color=color, lw=1.1,
+                                linestyle='--' if dashed else '-',
+                                shrinkA=1, shrinkB=1), zorder=1)
+    if label:
+        ax.text((x0 + x1) / 2 + lx, (y0 + y1) / 2 + ly, label,
+                fontsize=6.5, color=INK2, ha='center', zorder=3)
+
+
+def fig_method():
+    fig, ax = plt.subplots(figsize=(9.8, 4.1))
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 41)
+    ax.axis('off')
+
+    from matplotlib.patches import FancyBboxPatch
+    # lane backgrounds
+    ax.add_patch(FancyBboxPatch((0.5, 14.5), 99, 26,
+                 boxstyle="round,pad=0.2", facecolor='#f6f6f3',
+                 edgecolor='none', zorder=0))
+    ax.add_patch(FancyBboxPatch((0.5, 0.5), 99, 12.4,
+                 boxstyle="round,pad=0.2", facecolor='#eef3fb',
+                 edgecolor='none', zorder=0))
+    ax.text(2, 38.6, 'TRAINING  (simulation, offline, repeated for '
+            r'$8 \times 10^5$ examples)', fontsize=8, color=INK,
+            fontweight='bold')
+    ax.text(2, 10.9, 'DEPLOYMENT  (one forward pass per dataset)',
+            fontsize=8, color=INK, fontweight='bold')
+
+    # ---- training lane ----
+    _box(ax, 2, 26, 13, 5.4,
+         'Draw parameters\n' + r'$\lambda \sim \pi$' + '\n(prior over family)')
+    _box(ax, 21, 30.5, 16, 5.4,
+         'Dataset\n' + r'$X \sim F_\lambda$  ($n = 200$)')
+    _box(ax, 21, 21.5, 16, 5.4,
+         'Independent replicate\n' + r'$\tilde X \sim F_\lambda$')
+    _box(ax, 43, 30.5, 15, 5.4,
+         'Sort + standardize\n' + r'$(z, \mathrm{aux})$')
+    _box(ax, 43, 21.5, 15, 5.4,
+         'Single root draw\n' + r'$t = T_n(\tilde X) - T(F_\lambda)$')
+    _box(ax, 64, 30.5, 14, 5.4, 'Monotone quantile\nnetwork '
+         + r'$q_\theta$', fc='#dcebfb', ec=C_OURS, bold=True)
+    _box(ax, 84, 30.5, 14, 5.4, '199 predicted\nquantiles '
+         + r'$q(\tau)$')
+    _box(ax, 84, 21.5, 14, 5.4, 'Pinball loss\n(proper scoring rule)',
+         fc='#fdf3dc', ec=C_MOON)
+    _box(ax, 43, 15.6, 35, 4.2,
+         'Validation split: own-root recalibration  '
+         + r'$\tau \rightarrow h^{-1}(\tau)$', fc='#ece9f7', ec=C_BAYES)
+
+    _arrow(ax, 15, 29.5, 21, 32.2)
+    _arrow(ax, 15, 28, 21, 24.8)
+    _arrow(ax, 37, 33.2, 43, 33.2)
+    _arrow(ax, 37, 24.2, 43, 24.2)
+    _arrow(ax, 58, 33.2, 64, 33.2)
+    _arrow(ax, 78, 33.2, 84, 33.2)
+    _arrow(ax, 91, 30.5, 91, 26.9)                       # quantiles -> loss
+    _arrow(ax, 58, 24.2, 84, 24.2)                       # t -> loss
+    _arrow(ax, 84, 22.6, 71, 30.4, dashed=True,
+           label='gradients', lx=4.5, ly=2.4)
+    _arrow(ax, 68, 30.5, 63, 19.8, dashed=True)          # net -> recal fit
+
+    # ---- deployment lane ----
+    _box(ax, 2, 3, 13, 5.4, 'Observed\ndataset ' + r'$X$')
+    _box(ax, 21, 3, 16, 5.4, 'Sort + standardize\n' + r'$(z, \mathrm{aux})$')
+    _box(ax, 43, 3, 15, 5.4, 'Frozen network\n' + r'$q_\theta$',
+         fc='#dcebfb', ec=C_OURS, bold=True)
+    _box(ax, 64, 3, 14, 5.4, 'Recalibrated\nquantiles')
+    _box(ax, 84, 3, 14, 5.4, 'Confidence interval\n'
+         + r'$[\,T_n - q_{1-\alpha/2},\; T_n - q_{\alpha/2}\,]$',
+         fontsize=6.8)
+
+    _arrow(ax, 15, 5.7, 21, 5.7)
+    _arrow(ax, 37, 5.7, 43, 5.7)
+    _arrow(ax, 58, 5.7, 64, 5.7)
+    _arrow(ax, 78, 5.7, 84, 5.7)
+    _arrow(ax, 60.5, 15.4, 69, 8.6, dashed=True,
+           label=r'$h^{-1}$', lx=3, ly=0.5)
+
+    fig.tight_layout(pad=0.4)
+    _save(fig, 'fig_method')
+
+
 def main():
     print("Generating paper figures -> paper/figures/")
     fig_reliability()
@@ -308,6 +408,7 @@ def main():
     fig_width_tracking()
     fig_quantile_overlay()
     fig_real_var()
+    fig_method()
 
 
 if __name__ == '__main__':
