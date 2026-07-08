@@ -32,7 +32,8 @@ def _fmt(row, key, spec):
     if v is None:
         return '--'
     if spec == 's':
-        return str(v)
+        # '|' typesets as an em-dash in text mode; '~' is a nbsp
+        return str(v).replace('|', ' / ')
     if v != v:  # NaN
         return '--'
     return format(v, spec)
@@ -48,10 +49,11 @@ def export_table(rows: list, name: str, caption: str = ''):
             w.writerow([_fmt(r, k, spec) for k, _, spec in _COLUMNS])
 
     tex_path = TABLES_DIR / f"{name}.tex"
+    cap = (caption or name).replace(' ~ ', ' $\\sim$ ')
     lines = [
         "\\begin{table}[t]",
         "\\centering",
-        f"\\caption{{{caption or name}}}",
+        f"\\caption{{{cap}}}",
         f"\\label{{tab:{name}}}",
         "\\begin{tabular}{lccccc}",
         "\\toprule",
