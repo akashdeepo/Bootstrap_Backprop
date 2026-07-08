@@ -1,116 +1,155 @@
 # amortized-bootstrap
 
-Amortized neural estimation of sampling distributions for statistics where
-Efron's bootstrap is provably inconsistent: maxima of bounded-support
-distributions, means under infinite variance, extreme quantiles, and
-tail-index estimators.
+**When the bootstrap is provably wrong, learn the sampling distribution instead.**
 
-**Status:** research code accompanying a paper in preparation.
+[![tests](https://github.com/akashdeepo/Bootstrap_Backprop/actions/workflows/ci.yml/badge.svg)](https://github.com/akashdeepo/Bootstrap_Backprop/actions)
+![python](https://img.shields.io/badge/python-3.10%2B-blue)
+![status](https://img.shields.io/badge/paper-in%20preparation-orange)
 
-## The idea
+Efron's bootstrap quietly powers most of applied uncertainty
+quantification, and it is *provably inconsistent* for some of the
+statistics people care about most: maxima of bounded distributions, means
+of infinite-variance data, extreme quantiles, tail-index estimators. The
+classical fixes (m-out-of-n bootstrap, subsampling) need rate corrections
+that depend on the very parameters you do not know.
 
-For a statistic `T_n` computed from an i.i.d. sample of size `n`, classical
-inference needs the sampling distribution of the root `T_n - T(F)`. The
-bootstrap estimates it by resampling -- and fails in well-documented ways for
-non-regular statistics (Bickel-Freedman 1981; Athreya 1987). The classical
-remedies (m-out-of-n bootstrap, subsampling) require rate corrections that
-depend on unknown parameters and behave poorly at realistic sample sizes.
+This repo trains a small neural network, by simulation alone, to output
+the sampling distribution of a statistic directly. One forward pass on a
+single dataset of n = 200 observations gives you calibrated confidence
+intervals in regimes where resampling cannot.
 
-This project trains a quantile network by simulation instead:
+## The headline numbers
 
-1. Draw distribution parameters from a prior over a family; draw one dataset
-   `X` and, independently, ONE draw of the root `t = T_n(X') - T(F)`.
-2. Train a monotone quantile head on sorted, standardized order statistics
-   of `X` with pinball loss against the single draw `t`. Pinball loss is a
-   proper scoring rule, so the population minimizer is the true conditional
-   law of the root given the data.
-3. Recalibrate quantile levels on a validation split against each dataset's
-   OWN root (simulation calibration), then read confidence intervals off the
-   predicted quantiles: `[T_n - q(1-a/2), T_n - q(a/2)]`.
+95% interval coverage on four canonical bootstrap-failure problems
+(20,000 test datasets per problem, parameters held out from training):
 
-At test time a single forward pass maps one dataset of `n = 200` points to
-its full sampling-distribution estimate. Every experiment ships with an
-input-sensitivity diagnostic that fails loudly if a model ignores its input,
-and with exact or Monte Carlo ground truth built from seed streams that never
-touch training.
+| Problem | Learned (this repo) | Standard bootstrap | Best classical option |
+|---|---|---|---|
+| Max of bounded support | **0.949** | 0.877 | 0.951, but must *know* the family |
+| Mean, infinite variance (stable) | **0.952** | 0.967 with 4x worse W1 | oracle-rate m-out-of-n: 0.991, intervals 52% too long |
+| Hill tail index (Pareto) | **0.951** | 0.913 | parametric MLE: 0.947, must know the family |
+| 99% VaR (tempered stable) | **0.947** | 0.724 | *none can work*: exact interval capped at 0.851 |
 
-## Installation
+The VaR row is the point: at n = 200 and p = 0.99, **no distribution-free
+method can reach 95% coverage even in principle** (the exact
+order-statistic interval has a provable ceiling of 0.866). The learned
+method gets 94.7%.
 
-Python 3.10+. Install PyTorch first (CUDA build recommended,
-[pytorch.org](https://pytorch.org)), then:
+On **real daily market returns** (Nasdaq, S&P 500, EUR/USD, USD/JPY,
+GBP/USD, evaluated against the known population quantile of each full
+series), the same frozen model averages **0.868** coverage against the
+bootstrap's 0.730. A single universal network with a statistic token
+matches all four specialist models at once.
 
-```
-pip install -e .
-```
+Where the exact Bayes-optimal answer is computable (two of the four
+problems), the network captures **over 97% of the achievable
+improvement**. This is not "beats a strawman"; it is near the ceiling of
+what any method could do with the same data.
 
-or just `pip install -r requirements.txt` and run from the repo root.
+## How it works, in 60 seconds
+
+1. **Pick a prior** over a family of data-generating processes (e.g.
+   symmetric stable with unknown tail index, scale, location).
+2. **Simulate training pairs**: draw parameters, draw a dataset X, and
+   independently draw ONE value of the root T_n - T(F) from a second
+   dataset. No Monte Carlo target distributions are ever built.
+3. **Train a monotone quantile network** on sorted, standardized order
+   statistics of X, scored by the pinball loss against that single draw.
+   Pinball is a proper scoring rule, so the population minimizer is
+   exactly the conditional law of the root given the data.
+4. **Recalibrate** quantile levels on a validation split against each
+   dataset's own root (not predictive PIT; the difference is worth a
+   full coverage point and is one of the paper's findings).
+5. **Deploy**: one forward pass maps any new dataset to 199 recalibrated
+   root quantiles; confidence intervals read off directly.
+
+## Why you can trust the numbers
+
+The first version of this project produced spectacular results that were
+completely wrong: with shared training targets, the loss-optimal network
+was a *constant* that ignored its input, and no marginal metric could
+tell. That failure is baked into this codebase as a design rule and a
+test:
+
+- **No shared targets, ever.** Every training example draws fresh
+  parameters; a constant predictor is structurally suboptimal.
+- **A mandatory input-sensitivity diagnostic** runs in every experiment:
+  predicted interval widths must track the truth across test datasets
+  (correlations 0.95 to 1.00 here) and must respond to garbage inputs.
+- **Leakage-proof seeding**: train, validation, test, and ground-truth
+  randomness come from disjoint, index-stable streams of a single
+  master seed.
+- **Oracle-anchored evaluation**: exact Bayes-optimal references where
+  computable, exact (non-resampled) classical baselines for the max,
+  fresh Monte Carlo ground truth that never touches training.
+- **Replication**: every experiment run under three training seeds with
+  paired test sets; every gate passed in every replicate, coverage
+  spread 0.2 to 0.4 percentage points.
 
 ## Quickstart
 
+Python 3.10+; install PyTorch first (CUDA recommended), then:
+
 ```
+pip install -e .
 python -m amortized_bootstrap.experiments.m1_uniform_max --epochs 5 --n-train 50000
 ```
 
-trains a small model on the uniform-max family and prints a method-comparison
-table (CI coverage, interval length, Wasserstein-1 distance to the exact root
-distribution) against the standard bootstrap, subsampling, a parametric
+That trains a small demo model in a couple of minutes and prints a full
+method-comparison table (coverage, interval length, Wasserstein distance
+to the exact truth) against the bootstrap, subsampling, a parametric
 bootstrap, and the exact Bayes oracle.
 
-## Reproducing the experiments
+## Reproducing everything
 
-All experiments run as modules from the repo root. Default settings match
-the committed results in `results/` (RTX 3060, ~15-25 min per experiment;
-first runs also build one-time Monte Carlo ground-truth caches):
+Defaults reproduce the committed results in `results/` (RTX 3060-class
+GPU, roughly 15 to 25 minutes per experiment; first runs also build
+one-time Monte Carlo ground-truth caches):
 
 ```
 python -m amortized_bootstrap.experiments.m1_uniform_max     # max | Uniform(0, theta)
-python -m amortized_bootstrap.experiments.m2_stable_mean     # mean | symmetric alpha-stable (Athreya case)
+python -m amortized_bootstrap.experiments.m2_stable_mean     # mean | alpha-stable (Athreya case)
 python -m amortized_bootstrap.experiments.m3_pareto_hill     # Hill | Pareto
-python -m amortized_bootstrap.experiments.m3_nts_var         # VaR 0.99 | normal tempered stable
+python -m amortized_bootstrap.experiments.m3_nts_var         # VaR 0.99 | tempered stable
 python -m amortized_bootstrap.experiments.m4_ood             # out-of-family stress tests
-python -m amortized_bootstrap.experiments.m4_universal       # one model, all statistics
-python -m amortized_bootstrap.experiments.make_figures       # figures from saved results
+python -m amortized_bootstrap.experiments.m4_universal       # one model, all four statistics
+python -m amortized_bootstrap.experiments.m4c_beta_max       # learning an unknown convergence RATE
+python -m amortized_bootstrap.experiments.m5_real_var        # real market data (downloads from FRED)
+python -m amortized_bootstrap.experiments.replication_summary
+python -m amortized_bootstrap.experiments.make_figures
 ```
 
-Common flags: `--epochs`, `--n-train`, `--hidden`, `--device cpu|cuda`.
-Each run prints its comparison table, runs the input-sensitivity diagnostic,
-and writes `results/<name>.npz` plus a model checkpoint.
+Multi-seed replication: prefix any experiment with `AB_VARIANT=1` (or 2)
+to re-randomize training while keeping test sets fixed.
 
-## Repository map
+The rate-learning experiment (`m4c_beta_max`) deserves a special mention:
+the convergence rate of the max varies as n^(-1/b) with the contact
+order b unknown, spanning six orders of magnitude across the prior. The
+network stays within 3 points of nominal coverage on every slice of b
+while the bootstrap swings between 49% and 97%.
+
+## Package layout
 
 ```
 amortized_bootstrap/
-  config.py          seed streams (SeedSequence(42)), paths, quantile levels
+  config.py          seed streams, paths, quantile levels
   families.py        training families with parameter priors + samplers
-  ood_families.py    out-of-family test distributions (Milestone 4)
+  ood_families.py    out-of-family test distributions
   datagen.py         single-draw training examples, featurization
-  model.py           monotone quantile network (cumulative-softplus head)
+  model.py           monotone quantile network (cumulative softplus head)
   training.py        pinball-loss training, validation-based selection
   calibration.py     own-root quantile recalibration
   evaluation.py      coverage / length / W1 metrics, diagnostics
   bayes.py           exact Bayes oracle: uniform max
   hill_oracle.py     exact Bayes oracle: Pareto Hill
   stable_table.py    stable quantile table + McCulloch estimator
-  nts_truth.py       NTS VaR ground-truth machinery
+  nts_truth.py       tempered-stable VaR ground-truth machinery
   ood_truth.py       generic MC truth + generic bootstrap baseline
-  baselines*.py      classical methods: standard bootstrap, m-out-of-n,
-                     subsampling, parametric bootstraps, order-statistic CI
-  experiments/       milestone runners (see above)
-tests/               fast CPU test suite (pytest)
+  baselines*.py      classical methods, exact where closed forms exist
+  experiments/       the runners listed above
+tests/               fast CPU test suite (pytest tests/ -q)
 results/             .npz eval arrays, model checkpoints, truth caches
 ```
-
-## Design invariants
-
-- **No shared targets.** Every training example draws fresh parameters from
-  the prior; targets are single independent root draws, never Monte Carlo
-  target vectors. A constant-output model is structurally suboptimal.
-- **Leakage-proof randomness.** Train / validation / test / ground-truth
-  data come from independent, index-stable `SeedSequence` streams; test
-  parameters and test-time truth never touch training.
-- **The input-sensitivity diagnostic must pass.** Model output must track
-  the input (interval-width correlation with the truth) and must respond to
-  garbage inputs; experiments print this check every run.
 
 ## Tests
 
@@ -118,12 +157,15 @@ results/             .npz eval arrays, model checkpoints, truth caches
 pytest tests/ -q
 ```
 
-Fast, CPU-only: analytic-vs-Monte-Carlo checks for the exact root
-distributions, sampler validation, calibration round-trips, quantile-head
-monotonicity, and seed determinism.
+Ten fast, CPU-only tests guard the mathematical claims the results rely
+on: analytic-vs-Monte-Carlo agreement for the exact root distributions,
+the stable sampler's Gaussian limit, calibration round-trips,
+quantile-head monotonicity, seed determinism, and featurization
+equivariance. The same suite runs in CI on every push.
 
-## Citation and license
+## Status, citation, license
 
-The accompanying paper is in preparation; a citation entry will be added on
-publication. Until then the code is provided for review with all rights
-reserved (no license file yet -- deliberately).
+The accompanying paper is in preparation; a citation entry and an open
+license will be added on publication. Until then the code is available
+for review with all rights reserved. Star or watch the repo if you want
+the update.

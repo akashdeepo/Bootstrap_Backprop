@@ -23,7 +23,7 @@ METRICS = ['cov95', 'cov90', 'len95', 'w1_truth']
 
 def main():
     lines_tex = [
-        "\\begin{table}[t]", "\\centering",
+        "\\begin{table}[htbp]", "\\centering",
         "\\caption{Multi-seed replication: mean [min, max] over three "
         "training seeds; test sets identical across seeds.}",
         "\\label{tab:replication}",

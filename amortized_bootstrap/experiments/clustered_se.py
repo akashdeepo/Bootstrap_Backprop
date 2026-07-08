@@ -104,7 +104,7 @@ def main():
               f"{clust_se:>8.4f} {P:>4}")
         rows_tex.append((stem, pooled, pooled_se, clust_se, P))
 
-    lines = ["\\begin{table}[t]", "\\centering",
+    lines = ["\\begin{table}[htbp]", "\\centering",
              "\\caption{95\\% coverage with pooled and clustered "
              "(between-parameter) standard errors.}",
              "\\label{tab:clustered_se}",

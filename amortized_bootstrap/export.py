@@ -64,7 +64,7 @@ def export_table(rows: list, name: str, caption: str = ''):
     tex_path = TABLES_DIR / f"{name}.tex"
     cap = (caption or name).replace(' ~ ', ' $\\sim$ ')
     lines = [
-        "\\begin{table}[t]",
+        "\\begin{table}[htbp]",
         "\\centering",
         f"\\caption{{{cap}}}",
         f"\\label{{tab:{name}}}",
