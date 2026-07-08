@@ -248,7 +248,7 @@ def main():
                 'target_scale': target_scale, 'c0': c0,
                 'n_input': n, 'n_levels': len(levels)},
                cfg.RESULTS_DIR / f'm3_nts_var_model{cfg.VTAG}.pt')
-    print(f"\nSaved: {out.name}, m3_nts_var_model.pt")
+    print(f"\nSaved: {out.name}, m3_nts_var_model{cfg.VTAG}.pt")
 
 
 if __name__ == '__main__':
