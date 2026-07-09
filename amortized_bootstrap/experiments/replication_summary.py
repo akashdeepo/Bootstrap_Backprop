@@ -24,6 +24,9 @@ PRETTY = {'m1_uniform_max': 'Uniform max',
           'm4c_beta_max': 'Beta max (unknown $b$)'}
 TAGS = ['', '_v1', '_v2']
 METRICS = ['cov95', 'cov90', 'len95', 'w1_truth']
+TEX_METRICS = ['cov95', 'cov90', 'w1_truth']  # len95 omitted: too wide
+                                              # at 12pt, and stability is
+                                              # shown by cov + W1
 
 
 def main():
@@ -32,8 +35,8 @@ def main():
         "\\caption{Multi-seed replication: mean [min, max] over three "
         "training seeds; test sets identical across seeds.}",
         "\\label{tab:replication}",
-        "\\begin{tabular}{lcccc}", "\\toprule",
-        "Family & Cov.\\ 95 & Cov.\\ 90 & Len.\\ 95 & W1 truth \\\\",
+        "\\begin{tabular}{lccc}", "\\toprule",
+        "Family & Cov.\\ 95 & Cov.\\ 90 & W1 truth \\\\",
         "\\midrule",
     ]
     print(f"{'Family':<18} {'metric':<9} {'mean':>8} {'min':>8} {'max':>8}")
@@ -60,7 +63,8 @@ def main():
             v = np.array(vals[m])
             print(f"{fam:<18} {m:<9} {v.mean():>8.4f} {v.min():>8.4f} "
                   f"{v.max():>8.4f}   (seeds: {', '.join(found)})")
-            cells.append(f"{v.mean():.3f} [{v.min():.3f}, {v.max():.3f}]")
+            if m in TEX_METRICS:
+                cells.append(f"{v.mean():.3f} [{v.min():.3f}, {v.max():.3f}]")
         lines_tex.append(PRETTY.get(fam, fam.replace('_', '\\_')) + " & "
                          + " & ".join(cells) + " \\\\")
         print()
