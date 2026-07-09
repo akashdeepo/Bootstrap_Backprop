@@ -1,4 +1,4 @@
-# amortized-bootstrap
+# Root networks
 
 **When the bootstrap is provably wrong, learn the sampling distribution instead.**
 
@@ -13,10 +13,28 @@ of infinite-variance data, extreme quantiles, tail-index estimators. The
 classical fixes (m-out-of-n bootstrap, subsampling) need rate corrections
 that depend on the very parameters you do not know.
 
-This repo trains a small neural network, by simulation alone, to output
-the sampling distribution of a statistic directly. One forward pass on a
-single dataset of n = 200 observations gives you calibrated confidence
-intervals in regimes where resampling cannot.
+A **root network** is a small neural network trained, by simulation
+alone, to output the sampling distribution of the root T_n - T(F)
+directly. One forward pass on a single dataset of n = 200 observations
+gives calibrated confidence intervals in regimes where resampling cannot.
+
+## Use the pretrained models in three lines
+
+```python
+from amortized_bootstrap import pretrained
+
+lo, hi = pretrained.interval(x, statistic="var99", level=0.95)
+```
+
+`x` is one dataset of 200 observations (or a batch, shape `(m, 200)`).
+Available statistics: `"max"` (bounded-support endpoint, unknown contact
+order), `"mean"` (infinite-variance safe), `"hill"` (tail index, k = 34),
+`"var99"` (99% quantile). `pretrained.root_quantiles` returns the full
+sampling-distribution estimate, and
+`pretrained.width_tracking_diagnostic` runs the anti-memorization check
+on your batch. Scope: models are trained at n = 200 under the priors
+documented in the module docstring; inputs far outside them trigger a
+warning, not silent extrapolation.
 
 ## The headline numbers
 
@@ -73,9 +91,10 @@ test:
 
 - **No shared targets, ever.** Every training example draws fresh
   parameters; a constant predictor is structurally suboptimal.
-- **A mandatory input-sensitivity diagnostic** runs in every experiment:
-  predicted interval widths must track the truth across test datasets
-  (correlations 0.95 to 1.00 here) and must respond to garbage inputs.
+- **The width-tracking diagnostic** runs in every experiment (and is
+  exposed as `pretrained.width_tracking_diagnostic`): predicted interval
+  widths must track the truth across test datasets (correlations 0.95 to
+  1.00 here) and must respond to garbage inputs.
 - **Leakage-proof seeding**: train, validation, test, and ground-truth
   randomness come from disjoint, index-stable streams of a single
   master seed.
@@ -139,6 +158,7 @@ amortized_bootstrap/
   model.py           monotone quantile network (cumulative softplus head)
   training.py        pinball-loss training, validation-based selection
   calibration.py     own-root quantile recalibration
+  pretrained.py      three-line interface to the trained root networks
   evaluation.py      coverage / length / W1 metrics, diagnostics
   bayes.py           exact Bayes oracle: uniform max
   hill_oracle.py     exact Bayes oracle: Pareto Hill
