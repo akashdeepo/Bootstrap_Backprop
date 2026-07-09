@@ -15,3 +15,8 @@ data/
 paper/
 LITERATURE.md
 RESEARCH_PLAN.md
+
+# Local-only: archived v1 project (own git history inside) + Claude settings
+v1-archive/
+.claude/
+.pytest_cache/

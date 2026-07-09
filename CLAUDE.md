@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 v2 of the bootstrap-correction research (Akash Deep, Texas Tech): **amortized inference for sampling distributions of non-regular statistics**. A network is trained on datasets drawn from a prior over distribution families and learns to output the data-conditional distribution of the root T_n - T(F), targeting exactly the cases where Efron's bootstrap is provably inconsistent (heavy tails, extremes, tail quantiles, tail index).
 
-This repo supersedes the v1 project (`../Bootstrap BackProp/`, frozen at tag `v1-baseline`), whose headline results were found to be a memorization artifact: the v1 training target was a single fixed ground-truth distribution per problem, so the loss-optimal model ignored its input. `RESEARCH_PLAN.md` is the canonical design document — read it before making methodological changes.
+This repo supersedes the v1 project (archived with its full git history in `v1-archive/`, gitignored; frozen at its tag `v1-baseline`), whose headline results were found to be a memorization artifact: the v1 training target was a single fixed ground-truth distribution per problem, so the loss-optimal model ignored its input. `RESEARCH_PLAN.md` is the canonical design document — read it before making methodological changes.
+
+**Status (2026-07-09): the paper is SUBMITTED to JCGS** (T&F portal) and awaiting review; an arXiv posting may be pending. Paper materials live in `paper/` (gitignored, local-only until publication).
 
 ## Commands
 
