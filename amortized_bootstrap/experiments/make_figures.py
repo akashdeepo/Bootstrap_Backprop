@@ -224,10 +224,11 @@ def fig_quantile_overlay():
     if d1 is not None and 'q_model_recal_head' in d1:
         lv = d1['levels']
         i = 0
+        # distinct line styles for grayscale robustness
         ax.plot(lv, d1['q_std_boot_head'][i], lw=1.4, color=C_SBOOT,
-                label='standard bootstrap')
+                ls=':', label='standard bootstrap')
         ax.plot(lv, d1['q_bayes_head'][i], lw=1.4, color=C_BAYES,
-                label='Bayes oracle')
+                ls='-.', label='Bayes oracle')
         ax.plot(lv, d1['q_model_recal_head'][i], lw=1.6, color=C_OURS,
                 label='learned (ours)')
         ax.plot(lv, d1['q_true_head'][i], ls='--', lw=1.1, color=INK,
@@ -244,9 +245,9 @@ def fig_quantile_overlay():
         lv = d2['levels']
         i = 0
         ax.plot(lv, d2['q_sboot_head'][i], lw=1.4, color=C_SBOOT,
-                label='standard bootstrap')
+                ls=':', label='standard bootstrap')
         ax.plot(lv, d2['q_param_head'][i], lw=1.4, color=C_PARAM,
-                label='parametric stable')
+                ls='-.', label='parametric stable')
         ax.plot(lv, d2['q_model_recal_head'][i], lw=1.6, color=C_OURS,
                 label='learned (ours)')
         ax.plot(lv, d2['q_true_head'][i], ls='--', lw=1.1, color=INK,
@@ -273,10 +274,11 @@ def fig_real_var():
     assets = [('nasdaq', 'Nasdaq Composite'), ('sp500', 'S&P 500'),
               ('eurusd', 'EUR/USD'), ('usdjpy', 'USD/JPY'),
               ('gbpusd', 'GBP/USD')]
-    methods = [('learned_(ours)', 'Learned (ours)', C_OURS),
-               ('standard_bootstrap', 'Standard bootstrap', C_SBOOT),
-               ('m_of_n_m100', 'm-out-of-n', C_MOON),
-               ('binomial_exact', 'Binomial exact', C_BINOM)]
+    # distinct marker shapes so the figure survives grayscale print
+    methods = [('learned_(ours)', 'Learned (ours)', C_OURS, 'o'),
+               ('standard_bootstrap', 'Standard bootstrap', C_SBOOT, 's'),
+               ('m_of_n_m100', 'm-out-of-n', C_MOON, '^'),
+               ('binomial_exact', 'Binomial exact', C_BINOM, 'D')]
 
     fig, ax = plt.subplots(figsize=(5.6, 2.8))
     _style_axes(ax)
@@ -286,9 +288,9 @@ def fig_real_var():
     ax.text(0.951, 4.42, 'nominal 0.95', fontsize=7, color=MUTED)
 
     y = np.arange(len(assets))[::-1]
-    for key, label, color in methods:
+    for key, label, color, marker in methods:
         covs = [float(d[f'{a}_{key}_cov95']) for a, _ in assets]
-        ax.scatter(covs, y, s=34, color=color, zorder=3,
+        ax.scatter(covs, y, s=32, color=color, zorder=3, marker=marker,
                    edgecolors='#52514e', linewidths=0.5, label=label)
     ax.set_yticks(y)
     ax.set_yticklabels([lbl for _, lbl in assets], fontsize=8)
