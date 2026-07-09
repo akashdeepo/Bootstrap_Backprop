@@ -17,6 +17,11 @@ from ..export import TABLES_DIR
 
 FAMILIES = ['m1_uniform_max', 'm2_stable_mean', 'm3_pareto_hill',
             'm3_nts_var', 'm4c_beta_max']
+PRETTY = {'m1_uniform_max': 'Uniform max',
+          'm2_stable_mean': 'Stable mean',
+          'm3_pareto_hill': 'Pareto Hill',
+          'm3_nts_var': 'NTS VaR 0.99',
+          'm4c_beta_max': 'Beta max (unknown $b$)'}
 TAGS = ['', '_v1', '_v2']
 METRICS = ['cov95', 'cov90', 'len95', 'w1_truth']
 
@@ -56,7 +61,7 @@ def main():
             print(f"{fam:<18} {m:<9} {v.mean():>8.4f} {v.min():>8.4f} "
                   f"{v.max():>8.4f}   (seeds: {', '.join(found)})")
             cells.append(f"{v.mean():.3f} [{v.min():.3f}, {v.max():.3f}]")
-        lines_tex.append(fam.replace('_', '\\_') + " & "
+        lines_tex.append(PRETTY.get(fam, fam.replace('_', '\\_')) + " & "
                          + " & ".join(cells) + " \\\\")
         print()
     lines_tex += ["\\bottomrule", "\\end{tabular}", "\\end{table}"]
