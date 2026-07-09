@@ -18,5 +18,7 @@ jobs:
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install numpy scipy matplotlib pytest
+      - name: Install package (editable, validates packaging)
+        run: pip install -e . --no-deps
       - name: Run test suite
         run: pytest tests/ -q
